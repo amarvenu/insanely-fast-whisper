@@ -158,13 +158,14 @@ def main(
         TextColumn("•"),
         TimeElapsedColumn(),
         TextColumn("•"),
-        TimeRemainingColumn(),
+        TextColumn("[bold blue]{task.fields[curr_task]}"),
     ) as pbar, open(transcript_path, "w", encoding="utf8") as output_f:
+        task = pbar.add_task("Processing files...", total=len(audio_files))
         for input_file_path in pbar.track(
             audio_files, description="Processing files..."
         ):
             try:
-                tr_task = pbar.add_task("[yellow]Transcribing...", total=None)
+                pbar.update(task, curr_task=f"Processing {input_file_path}...")
                 tr_outputs = transcription_pipeline(
                     input_file_path,
                     chunk_length_s=30,
@@ -172,10 +173,9 @@ def main(
                     generate_kwargs=generate_kwargs,
                     return_timestamps=("word" if timestamp == "word" else True),
                 )
-                pbar.update(tr_task, completed=True)
                 diarize_outputs = []
                 if diarize:
-                    pbar.add_task("[yellow]Segmenting...", total=None)
+                    pbar.update(task, curr_task=f"Diarizing {input_file_path}...")
                     inputs, diarizer_inputs = preprocess_inputs(inputs=input_file_path)
                     segments = diarize_audio(
                         diarizer_inputs,
@@ -187,7 +187,6 @@ def main(
                     diarize_outputs = post_process_segments_and_transcripts(
                         segments, tr_outputs["chunks"], group_by_speaker=False
                     )
-                    pbar.update(tr_task, completed=True)
                 result = {
                     "speakers": diarize_outputs,
                     "chunks": tr_outputs["chunks"],
@@ -195,10 +194,11 @@ def main(
                     "file_path": input_file_path,
                 }
                 output_f.write(json.dumps(result, ensure_ascii=False) + "\n")
+                output_f.flush()
             except Exception as e:
                 pbar.console.print_exception()
                 pbar.console.print(f"Error processing {input_file_path}: {e}")
-                continue
+            pbar.update(task, advance=1)
 
 
 def _check_diarization_args(max_speakers, min_speakers):
@@ -241,13 +241,13 @@ def _get_pipelines(
     return transcription_pipeline, diarization_pipeline
 
 
-def _get_audio_files(file_args: list[Path]) -> list[str]:
+def _get_audio_files(file_args: list[Path]) -> list[Path]:
     files = []
     for file in file_args:
         if file.is_dir():
             files.extend(
                 [
-                    str(file)
+                    file
                     for file in Path(file).rglob("*")
                     if file.suffix
                     in [
@@ -261,7 +261,7 @@ def _get_audio_files(file_args: list[Path]) -> list[str]:
             )
         else:
             files.append(file)
-    return files
+    return sorted(files)
 
 
 class JsonTranscriptionResult(TypedDict):
