@@ -11,7 +11,6 @@ from rich.progress import (
     TextColumn,
     TimeElapsedColumn,
     MofNCompleteColumn,
-    TimeRemainingColumn,
 )
 from transformers import pipeline, Pipeline as HfPipeline
 
@@ -143,6 +142,18 @@ def main(
     audio_files = _get_audio_files(file_name)
     print(f"Found {len(audio_files)} audio files to process.")
 
+    if transcript_path.exists():
+        already_processed = _get_already_processed_files(transcript_path)
+        prev_len = len(audio_files)
+        audio_files = [
+            file
+            for file in audio_files
+            if file.absolute().as_posix() not in already_processed
+        ]
+        print(
+            f"Found {prev_len - len(audio_files)} already processed files. Skipping them."
+        )
+
     transcription_pipeline, diarization_pipeline = _get_pipelines(
         model_name, diarization_model, diarize, device_id, flash, hf_token
     )
@@ -152,22 +163,22 @@ def main(
         generate_kwargs.pop("task")
 
     with Progress(
-        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-        BarColumn(),
+        TextColumn("[blue][progress.percentage]{task.percentage:>3.0f}%"),
+        BarColumn(pulse_style="yellow"),
         MofNCompleteColumn(),
         TextColumn("•"),
         TimeElapsedColumn(),
         TextColumn("•"),
-        TextColumn("[bold blue]{task.fields[curr_task]}"),
-    ) as pbar, open(transcript_path, "w", encoding="utf8") as output_f:
-        task = pbar.add_task("Processing files...", total=len(audio_files))
-        for input_file_path in pbar.track(
-            audio_files, description="Processing files..."
-        ):
+        TextColumn("[blue]{task.fields[curr_task]}"),
+    ) as pbar, open(transcript_path, "a", encoding="utf8") as output_f:
+        task = pbar.add_task(
+            "Processing files...", total=len(audio_files), curr_task=""
+        )
+        for input_file_path in audio_files:
             try:
-                pbar.update(task, curr_task=f"Processing {input_file_path}...")
+                pbar.update(task, curr_task=f"Transcribing {input_file_path}...")
                 tr_outputs = transcription_pipeline(
-                    input_file_path,
+                    str(input_file_path),
                     chunk_length_s=30,
                     batch_size=batch_size,
                     generate_kwargs=generate_kwargs,
@@ -176,7 +187,9 @@ def main(
                 diarize_outputs = []
                 if diarize:
                     pbar.update(task, curr_task=f"Diarizing {input_file_path}...")
-                    inputs, diarizer_inputs = preprocess_inputs(inputs=input_file_path)
+                    inputs, diarizer_inputs = preprocess_inputs(
+                        inputs=str(input_file_path)
+                    )
                     segments = diarize_audio(
                         diarizer_inputs,
                         diarization_pipeline,
@@ -191,14 +204,15 @@ def main(
                     "speakers": diarize_outputs,
                     "chunks": tr_outputs["chunks"],
                     "text": tr_outputs["text"],
-                    "file_path": input_file_path,
+                    "file_path": Path(input_file_path).absolute().as_posix(),
                 }
                 output_f.write(json.dumps(result, ensure_ascii=False) + "\n")
                 output_f.flush()
+                pbar.update(task, advance=1, curr_task=f"Processed {input_file_path}.")
             except Exception as e:
                 pbar.console.print_exception()
                 pbar.console.print(f"Error processing {input_file_path}: {e}")
-            pbar.update(task, advance=1)
+    print(f"Transcription complete. Output written to {transcript_path}")
 
 
 def _check_diarization_args(max_speakers, min_speakers):
@@ -213,6 +227,15 @@ def _check_diarization_args(max_speakers, min_speakers):
         assert (
             max_speakers >= min_speakers
         ), "max-speakers must be greater than or equal to min-speakers."
+
+
+def _get_already_processed_files(transcript_path: Path) -> set[str]:
+    print("Found existing transcript file. Checking for already processed files...")
+    already_processed = set()
+    with open(transcript_path, "r", encoding="utf8") as f:
+        for line in f:
+            already_processed.add(Path(json.loads(line)["file_path"]).absolute().as_posix())
+    return already_processed
 
 
 def _get_pipelines(
