@@ -1,8 +1,9 @@
 [project]
 name = "insanely-fast-whisper"
-version = "0.0.13-post1"
+version = "0.0.13-post2"
 description = "An insanely fast whisper CLI"
 authors = [
+    { name = "Faiz Surani", email = "faiz@faizsurani.com" },
     { name = "VB", email = "reachvaibhavs10@gmail.com" },
     { name = "Patrick Arminio", email = "patrick.arminio@gmail.com" },
 ]
@@ -21,8 +22,8 @@ license = { text = "MIT" }
 
 
 [build-system]
-requires = ["pdm-backend"]
-build-backend = "pdm.backend"
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [project.scripts]
 insanely-fast-whisper = "insanely_fast_whisper.cli:main"
