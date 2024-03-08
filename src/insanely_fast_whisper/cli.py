@@ -28,7 +28,7 @@ from .utils.diarize import (
     "-f",
     required=True,
     multiple=True,
-    type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=Path),
+    type=click.Path(exists=True, file_okay=True, dir_okay=True, path_type=Path),
     help="Path or URL to the audio file to be transcribed, or directory containing audio files. Allows multiple.",
 )
 @click.option(
@@ -123,7 +123,7 @@ from .utils.diarize import (
     show_default=True,
 )
 def main(
-    file_name: list[Path],
+    input_file_path: list[Path],
     transcript_path: Path,
     device_id: str,
     model_name: str,
@@ -140,7 +140,7 @@ def main(
 ):
     _check_diarization_args(max_speakers, min_speakers)
 
-    audio_files = _get_audio_files(file_name)
+    audio_files = _get_audio_files(input_file_path)
     print(f"Found {len(audio_files)} audio files to process.")
 
     transcription_pipeline, diarization_pipeline = _get_pipelines(
@@ -160,11 +160,13 @@ def main(
         TextColumn("•"),
         TimeRemainingColumn(),
     ) as pbar, open(transcript_path, "w", encoding="utf8") as output_f:
-        for file_name in pbar.track(audio_files, description="Processing files..."):
+        for input_file_path in pbar.track(
+            audio_files, description="Processing files..."
+        ):
             try:
                 tr_task = pbar.add_task("[yellow]Transcribing...", total=None)
                 tr_outputs = transcription_pipeline(
-                    file_name,
+                    input_file_path,
                     chunk_length_s=30,
                     batch_size=batch_size,
                     generate_kwargs=generate_kwargs,
@@ -174,7 +176,7 @@ def main(
                 diarize_outputs = []
                 if diarize:
                     pbar.add_task("[yellow]Segmenting...", total=None)
-                    inputs, diarizer_inputs = preprocess_inputs(inputs=file_name)
+                    inputs, diarizer_inputs = preprocess_inputs(inputs=input_file_path)
                     segments = diarize_audio(
                         diarizer_inputs,
                         diarization_pipeline,
@@ -186,11 +188,16 @@ def main(
                         segments, tr_outputs["chunks"], group_by_speaker=False
                     )
                     pbar.update(tr_task, completed=True)
-                result = build_result(tr_outputs, diarize_outputs)
+                result = {
+                    "speakers": diarize_outputs,
+                    "chunks": tr_outputs["chunks"],
+                    "text": tr_outputs["text"],
+                    "file_path": input_file_path,
+                }
                 output_f.write(json.dumps(result, ensure_ascii=False) + "\n")
             except Exception as e:
                 pbar.console.print_exception()
-                pbar.console.print(f"Error processing {file_name}: {e}")
+                pbar.console.print(f"Error processing {input_file_path}: {e}")
                 continue
 
 
@@ -222,7 +229,7 @@ def _get_pipelines(
     )
     diarization_pipeline = None
     if do_diarization:
-        diarization_pipeline = Pipeline.from_pretrained(
+        diarization_pipeline = PyannotePipeline.from_pretrained(
             checkpoint_path=diarization_model,
             use_auth_token=hf_token,
         )
@@ -261,11 +268,4 @@ class JsonTranscriptionResult(TypedDict):
     speakers: list
     chunks: list
     text: str
-
-
-def build_result(transcribe_outputs, diarize_outputs) -> JsonTranscriptionResult:
-    return {
-        "speakers": diarize_outputs,
-        "chunks": transcribe_outputs["chunks"],
-        "text": transcribe_outputs["text"],
-    }
+    file_path: str
