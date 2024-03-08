@@ -7,6 +7,7 @@ authors = [
     { name = "Patrick Arminio", email = "patrick.arminio@gmail.com" },
 ]
 dependencies = [
+    "click",
     "transformers",
     "optimum",
     "accelerate",
