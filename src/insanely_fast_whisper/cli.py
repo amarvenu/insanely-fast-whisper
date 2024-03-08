@@ -137,7 +137,8 @@ def main(
     min_speakers: int | None,
     max_speakers: int | None,
 ):
-    _check_diarization_args(max_speakers, min_speakers)
+    if diarize:
+        _check_diarization_args(max_speakers, min_speakers)
 
     audio_files = _get_audio_files(file_name)
     print(f"Found {len(audio_files)} audio files to process.")
@@ -234,7 +235,9 @@ def _get_already_processed_files(transcript_path: Path) -> set[str]:
     already_processed = set()
     with open(transcript_path, "r", encoding="utf8") as f:
         for line in f:
-            already_processed.add(Path(json.loads(line)["file_path"]).absolute().as_posix())
+            already_processed.add(
+                Path(json.loads(line)["file_path"]).absolute().as_posix()
+            )
     return already_processed
 
 
@@ -279,6 +282,12 @@ def _get_audio_files(file_args: list[Path]) -> list[Path]:
                         ".ogg",
                         ".flac",
                         ".m4a",
+                        # Should also work with video files:
+                        ".mp4",
+                        ".mkv",
+                        ".webm",
+                        ".avi",
+                        ".mov",
                     ]
                 ]
             )
