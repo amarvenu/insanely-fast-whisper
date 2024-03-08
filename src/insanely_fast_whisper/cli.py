@@ -123,7 +123,7 @@ from .utils.diarize import (
     show_default=True,
 )
 def main(
-    input_file_path: list[Path],
+    file_name: list[Path],
     transcript_path: Path,
     device_id: str,
     model_name: str,
@@ -140,7 +140,7 @@ def main(
 ):
     _check_diarization_args(max_speakers, min_speakers)
 
-    audio_files = _get_audio_files(input_file_path)
+    audio_files = _get_audio_files(file_name)
     print(f"Found {len(audio_files)} audio files to process.")
 
     transcription_pipeline, diarization_pipeline = _get_pipelines(
