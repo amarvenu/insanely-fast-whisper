@@ -214,7 +214,7 @@ def main(
                 except Exception as e:
                     pbar.console.print_exception()
                     pbar.console.print(f"Error processing {input_file_path}: {e}")
-            print(f"Transcription complete. Output written to {transcript_path}")
+            print(f"Transcription complete. Output written to {transcript_path / input_file_path.name}")
 
 
 def _check_diarization_args(max_speakers, min_speakers):
