@@ -38,11 +38,11 @@ from .utils.diarize import (
     show_default=True,
 )
 @click.option(
-    "--transcript-dir",
+    "--transcript-path",
     "-o",
     default=".",
-    type=str, #click.Path(exists=False, file_okay=True, dir_okay=True, path_type=Path),
-    help="Directory in which to save the transcription output JSON(s). If multiple audio files are processed, one file will be written per input file. (default: current directory)",
+    type=click.Path(exists=False, file_okay=True, dir_okay=True, path_type=Path),
+    help="Path at which to save the transcription output JSON(s). If multiple audio files are processed, one file will be written per input file. (default: current directory)",
     show_default=True,
 )
 @click.option(
@@ -123,7 +123,7 @@ from .utils.diarize import (
 )
 def main(
     file_name: list[Path],
-    transcript_dir: str,
+    transcript_path: Path,
     device_id: str,
     model_name: str,
     task: str,
@@ -176,8 +176,7 @@ def main(
             "Processing files...", total=len(audio_files), curr_task=""
         )
         for input_file_path in audio_files:
-            name = input_file_path.split('/')[-1]
-            with open(os.path.join(transcript_dir, name), "a", encoding="utf8") as output_f:
+            with open(transcript_path / input_file_path.name, "a", encoding="utf8") as output_f:
                 try:
                     pbar.update(task, curr_task=f"Transcribing {input_file_path}...")
                     tr_outputs = transcription_pipeline(
@@ -215,7 +214,7 @@ def main(
                 except Exception as e:
                     pbar.console.print_exception()
                     pbar.console.print(f"Error processing {input_file_path}: {e}")
-        print(f"Transcription complete. Output written to {transcript_path}")
+            print(f"Transcription complete. Output written to {transcript_path}")
 
 
 def _check_diarization_args(max_speakers, min_speakers):
@@ -233,13 +232,9 @@ def _check_diarization_args(max_speakers, min_speakers):
 
 
 def _get_already_processed_files(transcript_path: Path) -> set[str]:
-    print("Found existing transcript file. Checking for already processed files...")
-    already_processed = set()
-    with open(transcript_path, "r", encoding="utf8") as f:
-        for line in f:
-            already_processed.add(
-                Path(json.loads(line)["file_path"]).absolute().as_posix()
-            )
+    print("Found existing transcript directory. Checking for already processed files...")
+    files = [x for x in transcript_path.glob('**/*') if x.is_file()]
+    already_processed = set([x.absolute().as_posix() for x in files])
     return already_processed
 
 
