@@ -176,7 +176,8 @@ def main(
             "Processing files...", total=len(audio_files), curr_task=""
         )
         for input_file_path in audio_files:
-            with open(transcript_path / input_file_path.name, "a", encoding="utf8") as output_f:
+            outpath = transcript_path / '.'.join(input_file_path.name.split('.')[:-1] + ['json'])
+            with open(outpath, "a", encoding="utf8") as output_f:
                 try:
                     pbar.update(task, curr_task=f"Transcribing {input_file_path}...")
                     tr_outputs = transcription_pipeline(
@@ -214,7 +215,7 @@ def main(
                 except Exception as e:
                     pbar.console.print_exception()
                     pbar.console.print(f"Error processing {input_file_path}: {e}")
-            print(f"Transcription complete. Output written to {transcript_path / input_file_path.name}")
+            print(f"Transcription complete. Output written to {outpath}")
 
 
 def _check_diarization_args(max_speakers, min_speakers):
