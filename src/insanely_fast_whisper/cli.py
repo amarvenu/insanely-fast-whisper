@@ -38,11 +38,11 @@ from .utils.diarize import (
     show_default=True,
 )
 @click.option(
-    "--transcript-path",
+    "--transcript-dir",
     "-o",
-    default="output.jsonl",
-    type=click.Path(exists=False, file_okay=True, dir_okay=False, path_type=Path),
-    help="Path to save the transcription output JSONL. If multiple audio files are processed, one row per file will be written. (default: output.jsonl)",
+    default=".",
+    type=str, #click.Path(exists=False, file_okay=True, dir_okay=True, path_type=Path),
+    help="Directory in which to save the transcription output JSON(s). If multiple audio files are processed, one file will be written per input file. (default: current directory)",
     show_default=True,
 )
 @click.option(
@@ -171,48 +171,50 @@ def main(
         TimeElapsedColumn(),
         TextColumn("•"),
         TextColumn("[blue]{task.fields[curr_task]}"),
-    ) as pbar, open(transcript_path, "a", encoding="utf8") as output_f:
+    ) as pbar:
         task = pbar.add_task(
             "Processing files...", total=len(audio_files), curr_task=""
         )
         for input_file_path in audio_files:
-            try:
-                pbar.update(task, curr_task=f"Transcribing {input_file_path}...")
-                tr_outputs = transcription_pipeline(
-                    str(input_file_path),
-                    chunk_length_s=30,
-                    batch_size=batch_size,
-                    generate_kwargs=generate_kwargs,
-                    return_timestamps=("word" if timestamp == "word" else True),
-                )
-                diarize_outputs = []
-                if diarize:
-                    pbar.update(task, curr_task=f"Diarizing {input_file_path}...")
-                    inputs, diarizer_inputs = preprocess_inputs(
-                        inputs=str(input_file_path)
+            name = input_file_path.split('/')[-1]
+            with open(os.path.join(transcript_path, name), "a", encoding="utf8") as output_f:
+                try:
+                    pbar.update(task, curr_task=f"Transcribing {input_file_path}...")
+                    tr_outputs = transcription_pipeline(
+                        str(input_file_path),
+                        chunk_length_s=30,
+                        batch_size=batch_size,
+                        generate_kwargs=generate_kwargs,
+                        return_timestamps=("word" if timestamp == "word" else True),
                     )
-                    segments = diarize_audio(
-                        diarizer_inputs,
-                        diarization_pipeline,
-                        None,
-                        min_speakers,
-                        max_speakers,
-                    )
-                    diarize_outputs = post_process_segments_and_transcripts(
-                        segments, tr_outputs["chunks"], group_by_speaker=False
-                    )
-                result = {
-                    "speakers": diarize_outputs,
-                    "chunks": tr_outputs["chunks"],
-                    "text": tr_outputs["text"],
-                    "file_path": Path(input_file_path).absolute().as_posix(),
-                }
-                output_f.write(json.dumps(result, ensure_ascii=False) + "\n")
-                output_f.flush()
-                pbar.update(task, advance=1, curr_task=f"Processed {input_file_path}.")
-            except Exception as e:
-                pbar.console.print_exception()
-                pbar.console.print(f"Error processing {input_file_path}: {e}")
+                    diarize_outputs = []
+                    if diarize:
+                        pbar.update(task, curr_task=f"Diarizing {input_file_path}...")
+                        inputs, diarizer_inputs = preprocess_inputs(
+                            inputs=str(input_file_path)
+                        )
+                        segments = diarize_audio(
+                            diarizer_inputs,
+                            diarization_pipeline,
+                            None,
+                            min_speakers,
+                            max_speakers,
+                        )
+                        diarize_outputs = post_process_segments_and_transcripts(
+                            segments, tr_outputs["chunks"], group_by_speaker=False
+                        )
+                    result = {
+                        "speakers": diarize_outputs,
+                        "chunks": tr_outputs["chunks"],
+                        "text": tr_outputs["text"],
+                        "file_path": Path(input_file_path).absolute().as_posix(),
+                    }
+                    output_f.write(json.dumps(result, ensure_ascii=False) + "\n")
+                    output_f.flush()
+                    pbar.update(task, advance=1, curr_task=f"Processed {input_file_path}.")
+                except Exception as e:
+                    pbar.console.print_exception()
+                    pbar.console.print(f"Error processing {input_file_path}: {e}")
     print(f"Transcription complete. Output written to {transcript_path}")
 
 
