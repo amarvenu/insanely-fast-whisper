@@ -126,7 +126,6 @@ def main(
     timestamp: str,
     diarization_config: str,
     diarize: bool,
-    diarization_model: str,
     min_speakers: int | None,
     max_speakers: int | None,
 ):
@@ -149,7 +148,7 @@ def main(
         )
 
     transcription_pipeline, diarization_pipeline = _get_pipelines(
-        model_name, diarization_model, diarize, device_id, flash, diarization_config
+        model_name, diarize, device_id, flash, diarization_config
     )
 
     generate_kwargs = {"task": task, "language": language}
@@ -233,7 +232,7 @@ def _get_already_processed_files(transcript_path: Path) -> set[str]:
 
 
 def _get_pipelines(
-    model_name, diarization_model, do_diarization, device_id, flash, diarization_config
+    model_name, do_diarization, device_id, flash, diarization_config
 ) -> tuple[HfPipeline, PyannotePipeline | None]:
     transcription_pipeline = pipeline(
         "automatic-speech-recognition",
