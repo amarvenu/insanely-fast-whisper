@@ -245,7 +245,7 @@ def _get_pipelines(
     )
     diarization_pipeline = None
     if do_diarization:
-        diarization_pipeline = Pipeline.from_pretrained(diarization_config)
+        diarization_pipeline = PyannotePipeline.from_pretrained(diarization_config)
 
         diarization_pipeline.to(
             torch.device("mps" if device_id == "mps" else f"cuda:{device_id}")
