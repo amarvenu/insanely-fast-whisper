@@ -87,13 +87,6 @@ from .utils.diarize import (
     show_default=True,
 )
 @click.option(
-    "--hf_token",
-    default="no_token",
-    type=str,
-    help="Provide a hf.co/settings/token for Pyannote.audio to diarise the audio clips",
-    show_default=True,
-)
-@click.option(
     "--diarize",
     is_flag=True,
     default=False,
@@ -101,10 +94,10 @@ from .utils.diarize import (
     show_default=True,
 )
 @click.option(
-    "--diarization_model",
-    default="pyannote/speaker-diarization-3.1",
+    "--diarization_config",
+    default="pyannote_diarization_config.yaml",
     type=str,
-    help="Name of the pretrained model/ checkpoint to perform diarization. (default: pyannote/speaker-diarization)",
+    help="Path to (offline) pyannote diairzation config",
     show_default=True,
 )
 @click.option(
@@ -131,7 +124,7 @@ def main(
     batch_size: int,
     flash: bool,
     timestamp: str,
-    hf_token: str,
+    diarization_config: str,
     diarize: bool,
     diarization_model: str,
     min_speakers: int | None,
@@ -156,7 +149,7 @@ def main(
         )
 
     transcription_pipeline, diarization_pipeline = _get_pipelines(
-        model_name, diarization_model, diarize, device_id, flash, hf_token
+        model_name, diarization_model, diarize, device_id, flash, diarization_config
     )
 
     generate_kwargs = {"task": task, "language": language}
@@ -240,7 +233,7 @@ def _get_already_processed_files(transcript_path: Path) -> set[str]:
 
 
 def _get_pipelines(
-    model_name, diarization_model, do_diarization, device_id, flash, hf_token
+    model_name, diarization_model, do_diarization, device_id, flash, diarization_config
 ) -> tuple[HfPipeline, PyannotePipeline | None]:
     transcription_pipeline = pipeline(
         "automatic-speech-recognition",
@@ -253,10 +246,8 @@ def _get_pipelines(
     )
     diarization_pipeline = None
     if do_diarization:
-        diarization_pipeline = PyannotePipeline.from_pretrained(
-            checkpoint_path=diarization_model,
-            use_auth_token=hf_token,
-        )
+        diarization_pipeline = Pipeline.from_pretrained(diarization_config)
+
         diarization_pipeline.to(
             torch.device("mps" if device_id == "mps" else f"cuda:{device_id}")
         )
