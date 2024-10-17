@@ -87,6 +87,13 @@ from .utils.diarize import (
     show_default=True,
 )
 @click.option(
+    "--chunk-length",
+    default=30,
+    type=int,
+    help="Length of chunk (in seconds) when using chunked timestamps. (default: 30)",
+    show_default=True,
+)
+@click.option(
     "--diarize",
     is_flag=True,
     default=False,
@@ -124,6 +131,7 @@ def main(
     batch_size: int,
     flash: bool,
     timestamp: str,
+    chunk_length: int,
     diarization_config: str,
     diarize: bool,
     min_speakers: int | None,
@@ -174,7 +182,7 @@ def main(
                     pbar.update(task, curr_task=f"Transcribing {input_file_path}...")
                     tr_outputs = transcription_pipeline(
                         str(input_file_path),
-                        chunk_length_s=30,
+                        chunk_length_s=chunk_length,
                         batch_size=batch_size,
                         generate_kwargs=generate_kwargs,
                         return_timestamps=("word" if timestamp == "word" else True),
