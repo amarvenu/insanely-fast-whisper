@@ -202,15 +202,15 @@ def main(
 
                         if transcription_pipeline is not None:  # if both, do the merge
                             diarize_outputs = post_process_segments_and_transcripts(
-                                segments, tr_outputs["chunks"], group_by_speaker=False
+                                segments, chunks, group_by_speaker=False
                             )
                         else:
                             diarize_outputs = segments
 
                     result = {
                         "speakers": diarize_outputs,
-                        "chunks": tr_outputs["chunks"],
-                        "text": tr_outputs["text"],
+                        "chunks": chunks,
+                        "text": text,
                         "file_path": Path(input_file_path).absolute().as_posix(),
                     }
                     output_f.write(json.dumps(result, ensure_ascii=False) + "\n")
