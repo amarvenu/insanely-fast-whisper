@@ -3,7 +3,7 @@ name = "insanely-fast-whisper"
 version = "0.0.13-post2"
 description = "An insanely fast whisper CLI"
 authors = [
-    { name = 'Amar Venugopal', email = 'amarvenu@stanford.edu'}
+    { name = 'Amar Venugopal', email = 'amarvenu@stanford.edu'},
     { name = "Faiz Surani", email = "faiz@faizsurani.com" },
     { name = "VB", email = "reachvaibhavs10@gmail.com" },
     { name = "Patrick Arminio", email = "patrick.arminio@gmail.com" },
