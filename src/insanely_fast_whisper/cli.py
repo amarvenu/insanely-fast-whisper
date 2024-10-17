@@ -37,11 +37,11 @@ from .utils.diarize import (
     show_default=True,
 )
 @click.option(
-    "--transcript-path",
+    "--output-path",
     "-o",
     default=".",
     type=click.Path(exists=False, file_okay=True, dir_okay=True, path_type=Path),
-    help="Path at which to save the transcription output JSON(s). If multiple audio files are processed, one file will be written per input file. (default: current directory)",
+    help="Path at which to save the output JSON(s). If multiple audio files are processed, one file will be written per input file. (default: current directory)",
     show_default=True,
 )
 @click.option(
@@ -115,7 +115,7 @@ from .utils.diarize import (
 )
 def main(
     file_name: list[Path],
-    transcript_path: Path,
+    output_path: Path,
     device_id: str,
     model_name: str,
     task: str,
@@ -125,7 +125,6 @@ def main(
     timestamp: str,
     chunk_length: int,
     diarization_config: str,
-    diarize: bool,
     min_speakers: int | None,
     max_speakers: int | None,
 ):
@@ -135,8 +134,8 @@ def main(
     audio_files = _get_audio_files(file_name)
     print(f"Found {len(audio_files)} audio files to process.")
 
-    if transcript_path.exists():
-        already_processed = _get_already_processed_files(transcript_path)
+    if output_path.exists():
+        already_processed = _get_already_processed_files(output_path)
         prev_len = len(audio_files)
         audio_files = [
             file
@@ -169,7 +168,7 @@ def main(
             "Processing files...", total=len(audio_files), curr_task=""
         )
         for input_file_path in audio_files:
-            outpath = transcript_path / '.'.join(input_file_path.name.split('.')[:-1] + ['json'])
+            outpath = output_path / '.'.join(input_file_path.name.split('.')[:-1] + ['json'])
             with open(outpath, "a", encoding="utf8") as output_f:
                 try:
                     chunks = []
@@ -237,9 +236,9 @@ def _check_diarization_args(max_speakers, min_speakers):
         ), "max-speakers must be greater than or equal to min-speakers."
 
 
-def _get_already_processed_files(transcript_path: Path) -> set[str]:
+def _get_already_processed_files(output_path: Path) -> set[str]:
     print("Found existing transcript directory. Checking for already processed files...")
-    files = [x for x in transcript_path.glob('**/*') if x.is_file()]
+    files = [x for x in output_path.glob('**/*') if x.is_file()]
     already_processed = set([x.absolute().as_posix() for x in files])
     return already_processed
 
