@@ -20,7 +20,7 @@ from rich.progress import (
     required=True,
     multiple=True,
     type=click.Path(exists=True, file_okay=True, dir_okay=True, path_type=Path),
-    help="Path or URL to the audio file to be transcribed, or directory containing audio files. Allows multiple.",
+    help="Path or URL to the audio file to be diarized, or directory containing audio files. Allows multiple.",
 )
 @click.option(
     "--device-id",
@@ -38,8 +38,8 @@ from rich.progress import (
     show_default=True,
 )
 @click.option(
-    "--diarization_config",
-    default="pyannote_diarization_config.yaml",
+    "--diarization-config",
+    default="models/pyannote_diarization_config.yaml",
     type=str,
     help="Path to (offline) pyannote diairzation config",
     show_default=True,
@@ -71,8 +71,8 @@ def main(
     audio_files = _get_audio_files(file_name)
     print(f"Found {len(audio_files)} audio files to process.")
 
-    if transcript_path.exists():
-        already_processed = _get_already_processed_files(transcript_path)
+    if output_path.exists():
+        already_processed = _get_already_processed_files(output_path)
         prev_len = len(audio_files)
         audio_files = [
             file
@@ -130,9 +130,9 @@ def _check_diarization_args(max_speakers, min_speakers):
         ), "max-speakers must be greater than or equal to min-speakers."
 
 
-def _get_already_processed_files(transcript_path: Path) -> set[str]:
-    print("Found existing transcript directory. Checking for already processed files...")
-    files = [x for x in transcript_path.glob('**/*') if x.is_file()]
+def _get_already_processed_files(output_path: Path) -> set[str]:
+    print("Found existing output directory. Checking for already processed files...")
+    files = [x for x in output_path.glob('**/*') if x.is_file()]
     already_processed = set([x.absolute().as_posix() for x in files])
     return already_processed
 
