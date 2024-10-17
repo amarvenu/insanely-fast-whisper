@@ -20,7 +20,6 @@ from .utils.diarize import (
     diarize_audio,
 )
 
-
 @click.command()
 @click.option(
     "--file-name",
@@ -38,11 +37,11 @@ from .utils.diarize import (
     show_default=True,
 )
 @click.option(
-    "--transcript-path",
+    "--output-path",
     "-o",
     default=".",
     type=click.Path(exists=False, file_okay=True, dir_okay=True, path_type=Path),
-    help="Path at which to save the transcription output JSON(s). If multiple audio files are processed, one file will be written per input file. (default: current directory)",
+    help="Path at which to save the output JSON(s). If multiple audio files are processed, one file will be written per input file. (default: current directory)",
     show_default=True,
 )
 @click.option(
@@ -55,8 +54,8 @@ from .utils.diarize import (
 @click.option(
     "--task",
     default="transcribe",
-    type=click.Choice(["transcribe", "translate"]),
-    help="Task to perform: transcribe or translate to another language. (default: transcribe)",
+    type=click.Choice(["transcribe", "diarize", "both"]),
+    help="Task to perform: transcribe, diarize, or both (default: transcribe)",
     show_default=True,
 )
 @click.option(
@@ -94,14 +93,7 @@ from .utils.diarize import (
     show_default=True,
 )
 @click.option(
-    "--diarize",
-    is_flag=True,
-    default=False,
-    help="Whether to perform speaker diarization on the audio file. (default: False)",
-    show_default=True,
-)
-@click.option(
-    "--diarization_config",
+    "--diarization-config",
     default="pyannote_diarization_config.yaml",
     type=str,
     help="Path to (offline) pyannote diairzation config",
@@ -123,7 +115,7 @@ from .utils.diarize import (
 )
 def main(
     file_name: list[Path],
-    transcript_path: Path,
+    output_path: Path,
     device_id: str,
     model_name: str,
     task: str,
@@ -133,18 +125,17 @@ def main(
     timestamp: str,
     chunk_length: int,
     diarization_config: str,
-    diarize: bool,
     min_speakers: int | None,
     max_speakers: int | None,
 ):
-    if diarize:
+    if task in ['diarize', 'both']:
         _check_diarization_args(max_speakers, min_speakers)
 
     audio_files = _get_audio_files(file_name)
     print(f"Found {len(audio_files)} audio files to process.")
 
-    if transcript_path.exists():
-        already_processed = _get_already_processed_files(transcript_path)
+    if output_path.exists():
+        already_processed = _get_already_processed_files(output_path)
         prev_len = len(audio_files)
         audio_files = [
             file
@@ -156,12 +147,13 @@ def main(
         )
 
     transcription_pipeline, diarization_pipeline = _get_pipelines(
-        model_name, diarize, device_id, flash, diarization_config
+        task, model_name, device_id, flash, diarization_config
     )
 
-    generate_kwargs = {"task": task, "language": language}
-    if model_name.split(".")[-1] == "en":
-        generate_kwargs.pop("task")
+    if transcription_pipeline is not None:
+        generate_kwargs = {"task": 'transcribe', "language": language}
+        if model_name.split(".")[-1] == "en":
+            generate_kwargs.pop("task")
 
     with Progress(
         TextColumn("[blue][progress.percentage]{task.percentage:>3.0f}%"),
@@ -176,19 +168,26 @@ def main(
             "Processing files...", total=len(audio_files), curr_task=""
         )
         for input_file_path in audio_files:
-            outpath = transcript_path / '.'.join(input_file_path.name.split('.')[:-1] + ['json'])
+            outpath = output_path / '.'.join(input_file_path.name.split('.')[:-1] + ['json'])
             with open(outpath, "a", encoding="utf8") as output_f:
                 try:
-                    pbar.update(task, curr_task=f"Transcribing {input_file_path}...")
-                    tr_outputs = transcription_pipeline(
-                        str(input_file_path),
-                        chunk_length_s=chunk_length,
-                        batch_size=batch_size,
-                        generate_kwargs=generate_kwargs,
-                        return_timestamps=("word" if timestamp == "word" else True),
-                    )
+                    chunks = []
+                    text = ''
+                    if transcription_pipeline is not None:
+                        pbar.update(task, curr_task=f"Transcribing {input_file_path}...")
+                        tr_outputs = transcription_pipeline(
+                            str(input_file_path),
+                            chunk_length_s=chunk_length,
+                            batch_size=batch_size,
+                            generate_kwargs=generate_kwargs,
+                            return_timestamps=("word" if timestamp == "word" else True),
+                        )
+
+                        chunks = tr_outputs['chunks']
+                        text = tr_outputs['text']
+
                     diarize_outputs = []
-                    if diarize:
+                    if diarization_pipeline is not None:
                         pbar.update(task, curr_task=f"Diarizing {input_file_path}...")
                         inputs, diarizer_inputs = preprocess_inputs(
                             inputs=str(input_file_path)
@@ -200,13 +199,18 @@ def main(
                             min_speakers,
                             max_speakers,
                         )
-                        diarize_outputs = post_process_segments_and_transcripts(
-                            segments, tr_outputs["chunks"], group_by_speaker=False
-                        )
+
+                        if transcription_pipeline is not None:  # if both, do the merge
+                            diarize_outputs = post_process_segments_and_transcripts(
+                                segments, chunks, group_by_speaker=False
+                            )
+                        else:
+                            diarize_outputs = segments
+
                     result = {
                         "speakers": diarize_outputs,
-                        "chunks": tr_outputs["chunks"],
-                        "text": tr_outputs["text"],
+                        "chunks": chunks,
+                        "text": text,
                         "file_path": Path(input_file_path).absolute().as_posix(),
                     }
                     output_f.write(json.dumps(result, ensure_ascii=False) + "\n")
@@ -232,32 +236,36 @@ def _check_diarization_args(max_speakers, min_speakers):
         ), "max-speakers must be greater than or equal to min-speakers."
 
 
-def _get_already_processed_files(transcript_path: Path) -> set[str]:
+def _get_already_processed_files(output_path: Path) -> set[str]:
     print("Found existing transcript directory. Checking for already processed files...")
-    files = [x for x in transcript_path.glob('**/*') if x.is_file()]
+    files = [x for x in output_path.glob('**/*') if x.is_file()]
     already_processed = set([x.absolute().as_posix() for x in files])
     return already_processed
 
-
 def _get_pipelines(
-    model_name, do_diarization, device_id, flash, diarization_config
-) -> tuple[HfPipeline, PyannotePipeline | None]:
-    transcription_pipeline = pipeline(
-        "automatic-speech-recognition",
-        model=model_name,
-        torch_dtype=torch.float16,
-        device="mps" if device_id == "mps" else f"cuda:{device_id}",
-        model_kwargs={"attn_implementation": "flash_attention_2"}
-        if flash
-        else {"attn_implementation": "sdpa"},
-    )
+    task, model_name, device_id, flash, diarization_config
+) -> tuple[HfPipeline | None, PyannotePipeline | None]:
     diarization_pipeline = None
-    if do_diarization:
+    transcription_pipeline = None
+
+    if task in ['transcribe', 'both']:
+        transcription_pipeline = pipeline(
+            "automatic-speech-recognition",
+            model=model_name,
+            torch_dtype=torch.float16,
+            device="mps" if device_id == "mps" else f"cuda:{device_id}",
+            model_kwargs={"attn_implementation": "flash_attention_2"}
+            if flash
+            else {"attn_implementation": "sdpa"},
+        )
+
+    if task in ['diarize', 'both']:
         diarization_pipeline = PyannotePipeline.from_pretrained(diarization_config)
 
         diarization_pipeline.to(
             torch.device("mps" if device_id == "mps" else f"cuda:{device_id}")
         )
+
     if device_id == "mps":
         torch.mps.empty_cache()
     return transcription_pipeline, diarization_pipeline
