@@ -1,18 +1,18 @@
 [project]
-name = "insanely-fast-whisper"
+name = "insanely-fast-diarize"
 version = "0.0.13-post2"
-description = "An insanely fast whisper CLI"
+description = "An insanely fast diarization CLI"
 authors = [
+    { name = "Amar Venugopal", email = "amarvenu@stanford.edu"},
     { name = "Faiz Surani", email = "faiz@faizsurani.com" },
     { name = "VB", email = "reachvaibhavs10@gmail.com" },
     { name = "Patrick Arminio", email = "patrick.arminio@gmail.com" },
 ]
 dependencies = [
     "click",
-    "transformers",
     "optimum",
     "accelerate",
-    "pyannote-audio>=3.1.0",
+    "pyannote-audio==3.3.2",
     "setuptools>=68.2.2",
     "rich>=13.7.0",
 ]
@@ -20,14 +20,10 @@ requires-python = ">=3.8,<=3.12"
 readme = "README.md"
 license = { text = "MIT" }
 
-[project.optional-dependencies]
-flash = [
-    "flash-attn>=2.0.0"
-]
 
 [build-system]
 requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project.scripts]
-insanely-fast-whisper = "insanely_fast_whisper.cli:main"
+insanely-fast-diarize = "insanely_fast_whisper.diarize_cli:main"
