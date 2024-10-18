@@ -140,7 +140,7 @@ def main(
         audio_files = [
             file
             for file in audio_files
-            if file.absolute().as_posix() not in already_processed
+            if file.name.split('.')[0] not in already_processed
         ]
         print(
             f"Found {prev_len - len(audio_files)} already processed files. Skipping them."
@@ -236,11 +236,12 @@ def _check_diarization_args(max_speakers, min_speakers):
         ), "max-speakers must be greater than or equal to min-speakers."
 
 
-def _get_already_processed_files(output_path: Path) -> set[str]:
+def _get_already_processed_files(transcript_path: Path) -> set[str]:
     print("Found existing transcript directory. Checking for already processed files...")
-    files = [x for x in output_path.glob('**/*') if x.is_file()]
-    already_processed = set([x.absolute().as_posix() for x in files])
+    files = [x for x in transcript_path.glob('**/*') if x.is_file()]
+    already_processed = set([x.name.split('.')[0] for x in files])
     return already_processed
+
 
 def _get_pipelines(
     task, model_name, device_id, flash, diarization_config
